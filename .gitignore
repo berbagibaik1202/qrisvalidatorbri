@@ -1,0 +1,17 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+dist/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+packages/database/prisma/local.prisma
+data/
+coverage/
+tests/artifacts/
+test-results/
+playwright-report/

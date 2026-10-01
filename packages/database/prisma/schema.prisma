@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "mysql"
+  url = env("DATABASE_URL")
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String
+  role String @default("SUPER_ADMIN")
+  createdAt DateTime @default(now())
+}
+model Application {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  status String @default("ACTIVE")
+  webhookUrl String?
+  webhookSecret String?
+  createdAt DateTime @default(now())
+  keys ApiKey[]
+  payments Payment[]
+}
+model ApiKey {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields:[applicationId], references:[id])
+  name String
+  prefix String
+  hash String @unique
+  environment String @default("test")
+  status String @default("ACTIVE")
+  expiresAt DateTime?
+  lastUsedAt DateTime?
+  createdAt DateTime @default(now())
+}
+model PaymentSource {
+  id String @id @default(cuid())
+  name String
+  provider String @default("BRI_MERCHANT")
+  status String @default("VALIDATED")
+  merchantName String
+  city String
+  mpan String?
+  mcc String
+  filename String
+  activeVersionId String?
+  createdAt DateTime @default(now())
+  versions SourceVersion[]
+  payments Payment[]
+  transactions ProviderTransaction[]
+  reservations Reservation[]
+}
+model SourceVersion {
+  id String @id @default(cuid())
+  sourceId String
+  source PaymentSource @relation(fields:[sourceId], references:[id])
+  version Int
+  payload String @db.Text
+  hash String
+  merchantData Json
+  archivedAt DateTime?
+  createdAt DateTime @default(now())
+  payments Payment[]
+  @@unique([sourceId,version])
+}
+model Payment {
+  id String @id
+  applicationId String
+  application Application @relation(fields:[applicationId],references:[id])
+  sourceId String
+  source PaymentSource @relation(fields:[sourceId],references:[id])
+  sourceVersionId String
+  sourceVersion SourceVersion @relation(fields:[sourceVersionId],references:[id])
+  referenceId String
+  idempotencyKey String
+  requestHash String
+  description String
+  baseAmount Int
+  uniqueCode Int
+  payAmount Int
+  status String @default("PENDING")
+  qrPayload String @db.Text
+  qrHash String
+  expiresAt DateTime
+  paidAt DateTime?
+  providerReference String?
+  createdAt DateTime @default(now())
+  match PaymentMatch?
+  @@unique([applicationId,referenceId])
+  @@unique([applicationId,idempotencyKey])
+  @@index([sourceId,payAmount,status])
+  @@index([status,expiresAt])
+}
+model Reservation {
+  id String @id @default(cuid())
+  sourceId String
+  source PaymentSource @relation(fields:[sourceId],references:[id])
+  amount Int
+  until DateTime
+  @@unique([sourceId,amount])
+}
+model ProviderTransaction {
+  id String @id @default(cuid())
+  sourceId String
+  source PaymentSource @relation(fields:[sourceId],references:[id])
+  provider String
+  reference String
+  amount Int
+  transactionAt DateTime
+  providerStatus String
+  status String @default("UNMATCHED")
+  lastSeenAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  match PaymentMatch?
+  @@unique([sourceId,reference])
+}
+model PaymentMatch {
+  id String @id @default(cuid())
+  paymentId String @unique
+  payment Payment @relation(fields:[paymentId],references:[id])
+  transactionId String @unique
+  transaction ProviderTransaction @relation(fields:[transactionId],references:[id])
+  type String
+  actor String
+  createdAt DateTime @default(now())
+}
+model WebhookEvent {
+  id String @id
+  applicationId String
+  paymentId String @unique
+  payload Json
+  endpoint String?
+  status String @default("PENDING")
+  attempts Int @default(0)
+  nextRetryAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  deliveries WebhookDelivery[]
+}
+model WebhookDelivery {
+  id String @id @default(cuid())
+  eventId String
+  event WebhookEvent @relation(fields:[eventId],references:[id])
+  attempt Int
+  httpStatus Int?
+  durationMs Int
+  createdAt DateTime @default(now())
+}
+model AuditLog {
+  id String @id @default(cuid())
+  actor String
+  event String
+  resourceId String
+  metadata Json
+  createdAt DateTime @default(now())
+}
+model BrowserSession {
+  id String @id
+  sourceId String?
+  status String
+  lastCheck DateTime?
+  lastSync DateTime?
+  updatedAt DateTime @updatedAt
+}

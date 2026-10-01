@@ -1,0 +1,7 @@
+node_modules
+.env
+dist
+data
+*.db
+packages/database/prisma/local.prisma
+.git

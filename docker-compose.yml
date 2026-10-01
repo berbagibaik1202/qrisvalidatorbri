@@ -1,0 +1,74 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: rizpay
+      MYSQL_USER: rizpay
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    volumes: [mysql-data:/var/lib/mysql]
+    healthcheck:
+      test: [CMD-SHELL, 'mysqladmin ping -h localhost -u root -p"$$MYSQL_ROOT_PASSWORD"']
+      interval: 5s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      retries: 10
+  rizpay-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: mysql://rizpay:${MYSQL_PASSWORD}@mysql:3306/rizpay
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+      MINI_POS_URL: http://rizpay-mini-pos:3011
+    command: sh -c "npm run db:push && npm run seed && npm start"
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      retries: 15
+  rizpay-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: mysql://rizpay:${MYSQL_PASSWORD}@mysql:3306/rizpay
+      REDIS_URL: redis://redis:6379
+      MINI_POS_URL: http://rizpay-mini-pos:3011
+    command: npm run worker
+    depends_on:
+      rizpay-api: {condition: service_healthy}
+  rizpay-dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    ports: ["127.0.0.1:8080:80"]
+    depends_on: [rizpay-api]
+  rizpay-mini-pos:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    env_file: .env
+    environment:
+      MINI_POS_HOST: 0.0.0.0
+      RIZPAY_API_URL: http://rizpay-api:3001
+      MINI_POS_DATABASE: /data/orders.db
+    command: npm run pos
+    volumes: [pos-data:/data]
+    depends_on:
+      rizpay-api: {condition: service_healthy}
+volumes:
+  mysql-data:
+  redis-data:
+  pos-data:

@@ -1,0 +1,24 @@
+import 'dotenv/config';
+import {mkdtempSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {execFileSync} from 'node:child_process';
+import bcrypt from 'bcryptjs';
+import {createServer} from 'vite';
+const directory=mkdtempSync(join(tmpdir(),'rizpay-browser-'));
+const path=join(directory,'ui.db').replaceAll('\\','/');writeFileSync(path,'');
+process.env.DATABASE_URL='file:'+path;process.env.NODE_ENV='test';process.env.MOCK_PROVIDER_ENABLED='true';
+process.env.MINI_POS_URL='';
+execFileSync(process.execPath,['node_modules/prisma/build/index.js','db','push','--schema','packages/database/prisma/local.prisma'],{stdio:'pipe',env:process.env});
+const {db}=await import('../packages/database/src.js');
+await db.user.create({data:{email:'ui@rizpay.test',passwordHash:await bcrypt.hash('ui-test-password-123',4)}});
+await db.application.create({data:{code:'MINI_POS',name:'Mini POS'}});
+const {app}=await import('../apps/api/src/app.js');
+const server=app.listen(3003,'127.0.0.1');
+const {createPOS}=await import('../apps/mini-pos/server.js');
+const pos=createPOS(join(directory,'orders.db'),'http://127.0.0.1:3003');
+const posServer=pos.app.listen(3013,'127.0.0.1');
+process.env.MINI_POS_URL='http://127.0.0.1:3013';
+const vite=await createServer({configFile:'apps/dashboard/vite.config.ts',server:{port:5174,strictPort:true,proxy:Object.fromEntries(['/api','/v1','/health'].map(path=>[path,{target:'http://127.0.0.1:3003',changeOrigin:false}]))}});await vite.listen();
+async function stop(){await vite.close();server.close();posServer.close();pos.close();await db.$disconnect();process.exit(0);}
+process.on('SIGTERM',stop);process.on('SIGINT',stop);

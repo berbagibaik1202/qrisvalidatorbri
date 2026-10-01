@@ -1,0 +1,14 @@
+services:
+  rizpay-api:
+    command: sh -c "npm run db:migrate && npm run seed && npm start"
+    environment:
+      NODE_ENV: production
+      MOCK_PROVIDER_ENABLED: 'false'
+  rizpay-worker:
+    environment:
+      NODE_ENV: production
+      MOCK_PROVIDER_ENABLED: 'false'
+  rizpay-mini-pos:
+    environment:
+      NODE_ENV: production
+      MOCK_PROVIDER_ENABLED: 'false'

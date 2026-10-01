@@ -1,0 +1,36 @@
+# Add to the base stack (and production override for production deployments).
+services:
+  rizpay-api:
+    environment:
+      BRI_WORKER_URL: http://bri-browser-worker:3010
+  bri-browser-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.bri
+    env_file: .env
+    environment:
+      DATABASE_URL: mysql://rizpay:${MYSQL_PASSWORD}@mysql:3306/rizpay
+      BRI_BROWSER_EXECUTABLE: /usr/bin/chromium
+      BRI_BROWSER_PROFILE: /data/browser/bri
+      BRI_BROWSER_VISIBLE: 'true'
+      BRI_BROWSER_DISABLE_SANDBOX: 'true'
+      BRI_WORKER_HOST: 0.0.0.0
+      BRI_WORKER_PORT: '3010'
+      NODE_ENV: production
+      MOCK_PROVIDER_ENABLED: 'false'
+    volumes: [bri-profile:/data]
+    shm_size: 1gb
+    init: false
+    restart: unless-stopped
+    stop_grace_period: 45s
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      rizpay-api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, --input-type=module, -e, "import{createHash}from'node:crypto';const token=createHash('sha256').update('rizpay:bri-control:'+process.env.SECRET_ENCRYPTION_KEY).digest('hex');fetch('http://127.0.0.1:3010/status',{headers:{Authorization:'Bearer '+token}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      start_period: 90s
+      interval: 20s
+      timeout: 5s
+      retries: 3
+volumes:
+  bri-profile:

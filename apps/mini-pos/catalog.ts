@@ -1,0 +1,1 @@
+export const products=[{id:'kopi',name:'Kopi',price:5000,emoji:'☕'},{id:'teh',name:'Teh',price:4000,emoji:'🍵'},{id:'air',name:'Air Mineral',price:1000,emoji:'💧'},{id:'mie',name:'Mie Instan',price:7000,emoji:'🍜'},{id:'roti',name:'Roti',price:6000,emoji:'🥐'},{id:'snack',name:'Snack',price:8000,emoji:'🍿'}];

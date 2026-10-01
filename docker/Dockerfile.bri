@@ -1,0 +1,11 @@
+FROM node:22-bookworm-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl chromium xvfb xauth fonts-liberation tini && rm -rf /var/lib/apt/lists/*
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run db:generate && mkdir -p /data/browser && chown -R node:node /data
+ENV BRI_BROWSER_EXECUTABLE=/usr/bin/chromium BRI_BROWSER_PROFILE=/data/browser/bri BRI_BROWSER_VISIBLE=true BRI_BROWSER_DISABLE_SANDBOX=true BRI_WORKER_HOST=0.0.0.0 BRI_WORKER_PORT=3010
+USER node
+ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
+CMD ["xvfb-run", "-a", "--server-args=-screen 0 1440x1000x24 -nolisten tcp", "node", "node_modules/tsx/dist/cli.mjs", "apps/worker/src/bri.ts"]
